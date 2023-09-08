@@ -13,6 +13,24 @@ router.get("/", (_, res) => {
 	res.status(200).render("PRODUCT API ONLINE")
 })
 
+router.get("/home", async (req, res) => {
+	try {
+		// get all the unique masterCategory values and return random 4 in each category
+		const masterCategories = await Product.distinct("masterCategory")
+		const randomProducts = await Promise.all(masterCategories.map(async (masterCategory) => {
+			const products = await Product.find({ masterCategory: masterCategory })
+			// get 4 random products from each category
+			const randomProducts = products.sort(() => Math.random() - Math.random()).slice(0, 4)
+			return randomProducts
+		}))
+
+		res.status(200).send(randomProducts)
+	} catch (error) {
+		const errorMessage = error.message || "Internal Server Error"
+		res.status(500).send(errorMessage)
+	}
+})
+
 router.post("/getProduct", async (req, res) => {
 	let searchString = req.body.searchString
     const apiUrl = 'https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText?key=YOUR_API_KEY';
