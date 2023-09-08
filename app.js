@@ -18,9 +18,11 @@ app.use(cors())
 // API Routes
 const userAPI = require("./routes/api/user")
 const productAPI = require("./routes/api/product")
+const reviewAPI = require("./routes/api/review")
 
 app.use("/api/user", userAPI)
 app.use("/api/product", productAPI)
+app.use("/api/review", reviewAPI)
 
 app.get("/", (_, res) => {
 	res.status(200).send("CARTWIZ ENDPOINT ONLINE")
