@@ -1,10 +1,15 @@
+const dotenv = require("dotenv")
+dotenv.config()
+
 const express = require("express")
-const searchRecommendationPrompt = require("./constants")
+const { searchRecommendationPrompt } = require("./constants")
 const app = express()
 const router = express.Router()
 const User = require("../../schemas/UserSchema")
 const Product = require("../../schemas/ProductSchema")
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = (...args) =>
+	import("node-fetch").then(({ default: fetch }) => fetch(...args))
+const MAKER_SUITE_API_KEY = process.env.MAKER_SUITE_API_KEY
 
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
@@ -17,12 +22,18 @@ router.get("/home", async (req, res) => {
 	try {
 		// get all the unique masterCategory values and return random 4 in each category
 		const masterCategories = await Product.distinct("masterCategory")
-		const randomProducts = await Promise.all(masterCategories.map(async (masterCategory) => {
-			const products = await Product.find({ masterCategory: masterCategory })
-			// get 4 random products from each category
-			const randomProducts = products.sort(() => Math.random() - Math.random()).slice(0, 4)
-			return randomProducts
-		}))
+		const randomProducts = await Promise.all(
+			masterCategories.map(async (masterCategory) => {
+				const products = await Product.find({
+					masterCategory: masterCategory,
+				})
+				// get 4 random products from each category
+				const randomProducts = products
+					.sort(() => Math.random() - Math.random())
+					.slice(0, 4)
+				return randomProducts
+			})
+		)
 
 		res.status(200).send(randomProducts)
 	} catch (error) {
@@ -31,96 +42,107 @@ router.get("/home", async (req, res) => {
 	}
 })
 
-router.post("/getProduct", async (req, res) => {
-	let searchString = req.body.searchString
-    const apiUrl = 'https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText?key=YOUR_API_KEY';
+router.get("/getProduct", async (req, res) => {
+	let searchString = req.query.searchString
+	const apiUrl = `https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText?key=${MAKER_SUITE_API_KEY}`
 
-    try {
-        const apiResponse = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                prompt: {
-                    text: `${searchRecommendationPrompt} \ninput 2: ${searchString} \noutput 2:`
-                },
-                temperature: 0.55,
-                top_k: 40,
-                top_p: 0.95,
-                candidate_count: 3,
-                max_output_tokens: 1024,
-                stop_sequences: [],
-                safety_settings: [
-                    {
-                        "category": "HARM_CATEGORY_DEROGATORY",
-                        "threshold": 1
-                    },
-                    {
-                        "category": "HARM_CATEGORY_TOXICITY",
-                        "threshold": 1
-                    },
-                    {
-                        "category": "HARM_CATEGORY_VIOLENCE",
-                        "threshold": 2
-                    },
-                    {
-                        "category": "HARM_CATEGORY_SEXUAL",
-                        "threshold": 2
-                    },
-                    {
-                        "category": "HARM_CATEGORY_MEDICAL",
-                        "threshold": 2
-                    },
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS",
-                        "threshold": 2
-                    }
-                ]
-            })
-        });
 
-        // Check if the API response is okay
-        if (!apiResponse.ok) {
-            throw new Error("API response was not okay");
-        }
+	try {
+		const apiResponse = await fetch(apiUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				prompt: {
+					text: `${searchRecommendationPrompt} \ninput 2: ${searchString} \noutput 2:`,
+				},
+				temperature: 0.55,
+				top_k: 40,
+				top_p: 0.95,
+				candidate_count: 3,
+				max_output_tokens: 1024,
+				stop_sequences: [],
+				safety_settings: [
+					{
+						category: "HARM_CATEGORY_DEROGATORY",
+						threshold: 1,
+					},
+					{
+						category: "HARM_CATEGORY_TOXICITY",
+						threshold: 1,
+					},
+					{
+						category: "HARM_CATEGORY_VIOLENCE",
+						threshold: 2,
+					},
+					{
+						category: "HARM_CATEGORY_SEXUAL",
+						threshold: 2,
+					},
+					{
+						category: "HARM_CATEGORY_MEDICAL",
+						threshold: 2,
+					},
+					{
+						category: "HARM_CATEGORY_DANGEROUS",
+						threshold: 2,
+					},
+				],
+			}),
+		})
 
-        const data = await apiResponse.json();
-        const candidates = data.candidates;
-        if (!candidates || candidates.length === 0) {
-            return res.status(404).json({ error: "No prediction found." });
-        }
 
-        // Iterate over candidates and find a match in the database
-        for (let candidate of candidates) {
-            const searchParams = candidate.output.split("||");
+		// Check if the API response is okay
+		if (!apiResponse.ok) {
+			throw new Error("API response was not okay")
+		}
 
-            // This order is based on the priority you mentioned
-            const fields = [
-                'masterCategory',
-                'subCategory',
-                'articleType',
-                'baseColour',
-                'season'
-            ];
+		const data = await apiResponse.json()
 
-            let query = {};
-            for (let i = 0; i < searchParams.length; i++) {
-                query[fields[i]] = searchParams[i];
-            }
+		const candidates = data.candidates
+		if (!candidates || candidates.length === 0) {
+			return res.status(404).json({ error: "No prediction found." })
+		}
 
-            const product = await Product.findOne(query);
-            if (product) {
-                return res.status(200).json(product);
-            }
-        }
+		let candidate = candidates[0]
+		candidate = candidate.output.split("||")
 
-        return res.status(404).json({ error: "Product not found." });
+		let query = {}
+		query["masterCategory"] = candidate[0]
+		query["subCategory"] = candidate[1]
+		query["articleType"] = candidate[2]
 
-    } catch (err) {
-        return res.status(500).json({ error: "Server error.", details: err.message });
-    }
-});
+		// search for product in database
+		let results = await Product.find(query)
 
+		// if no results found, search for product with only masterCategory and subCategory
+		if (results.length === 0) {
+			query = {}
+			query["masterCategory"] = candidate[0]
+			query["subCategory"] = candidate[1]
+			results = await Product.find(query)
+		}
+
+		// if still no results found, search for product with only masterCategory
+		if (results.length === 0) {
+			query = {}
+			query["masterCategory"] = candidate[0]
+			results = await Product.find(query)
+		}
+
+		// if more than 1 result found, return random result
+		if (results.length > 1) {
+			results = results.sort(() => Math.random() - Math.random())
+			return res.status(200).json(results)
+		}
+
+		return res.status(404).json({ error: "No product found." })
+	} catch (err) {
+		return res
+			.status(500)
+			.json({ error: "Server error.", details: err.message })
+	}
+})
 
 module.exports = router
