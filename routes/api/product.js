@@ -1,9 +1,10 @@
 const express = require("express")
+const searchRecommendationPrompt = require("./constants")
 const app = express()
 const router = express.Router()
 const User = require("../../schemas/UserSchema")
 const Product = require("../../schemas/ProductSchema")
-const fetch = require('node-fetch');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
@@ -13,6 +14,7 @@ router.get("/", (_, res) => {
 })
 
 router.post("/getProduct", async (req, res) => {
+	let searchString = req.body.searchString
     const apiUrl = 'https://generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText?key=YOUR_API_KEY';
 
     try {
@@ -23,7 +25,7 @@ router.post("/getProduct", async (req, res) => {
             },
             body: JSON.stringify({
                 prompt: {
-                    text: "input 2: searchString_here \noutput 2:"
+                    text: `${searchRecommendationPrompt} \ninput 2: ${searchString} \noutput 2:`
                 },
                 temperature: 0.55,
                 top_k: 40,
