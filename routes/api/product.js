@@ -57,7 +57,7 @@ router.get("/home", async (req, res) => {
 				const randomProducts = products
 					.sort(() => Math.random() - Math.random())
 					.slice(0, 4)
-				return randomProducts
+				return { categoryName: masterCategory, products: randomProducts }
 			})
 		)
 
